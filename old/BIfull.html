@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Bodies Task</title>
+    <!-- import underscore.js library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.6.0/underscore.js" type="text/javascript"></script>
+    <script src="src/jspsych/jspsych.js"></script>
+    <script src="src/jspsych/plugins/jspsych-html-keyboard-response.js"></script>
+    <script src="src/jspsych/plugins/jspsych-image-keyboard-response.js"></script>
+    <script src="src/jspsych/plugins/jspsych-instructions.js"></script>
+    <script src="src/jspsych/plugins/jspsych-call-function.js"></script>
+    <script src="src/jspsych/plugins/jspsych-fullscreen.js"></script>
+    <script src="src/jspsych//plugins/jspsych-reconstruction.js"></script>
+    <script src="src/jspsych/plugins/jspsych-survey-text.js"></script>
+    <link href="src/jspsych/css/jspsych.css" rel="stylesheet" type="text/css"></link>
+  </head>
+  <body></body>
+  <script>
+
+  /************************************************************************** SETUP *******************************************************************/
+    var subject_id = jsPsych.randomization.randomID(15); //random 15 digit id
+    var cond = _.sample([0, 1]) // random condition; 0 = stable; 1 = decreasing
+    console.log(cond)
+
+    jsPsych.data.addProperties({ // add random data to file
+	  subject: subject_id,
+	  condition: cond
+	});
+
+  /* set constants */
+  var numtrials = 50;
+  var numpractrials = 10;
+  var numblocks = 1;
+  var blocks = _.range(numblocks);
+  var pracfreq = .5;
+
+  var postblocktime = 1000;
+  var stimtime = 500;
+  var poststimtime = 500;
+
+  /* put images in list in order*/
+  var images = [];
+  x = _.range(10, 310, 10).reverse();
+  for (i in x) {
+   if (x[i] >= 100) {
+     images.push('stim/T'+x[i]+'.jpg')//thin
+   } else {
+     images.push('stim/T0'+x[i]+'.jpg')
+   }
+  }
+  images.push('stim/N000.jpg') ;// neutral
+  for (i in _.range(10, 310, 10)) {
+   if (_.range(10, 310, 10)[i] < 100) {
+     images.push('stim/H0'+_.range(10, 310, 10)[i]+'.jpg')//fat
+   } else {
+     images.push('stim/H'+_.range(10, 310, 10)[i]+'.jpg')
+   }
+  }
+
+    /* setup fullscreen mode */
+    var fs = {
+    	type: 'fullscreen',
+      	fullscreen_mode: true
+        }
+
+    var welcome = {
+    	    type: 'instructions',
+    	    pages: [
+    		'Welcome to this task! We are interested in studying how people perceive and identify different kinds of bodies. Click next to begin.',
+    		"<p>On the next screen, you will be asked to answer some questions about yourself. </p>" +
+    		"<p>Please do so as honesty as possible. </p>" +
+    		"<p>After you answer these questions, you will be directed to the main tasks. More instructions will follow then. Click next to continue.</p>"
+    	    ],
+    	    show_clickable_nav: true
+    }
+      /******************************************************************** QUESTIONNAIRES ************************************************************/
+      /* define demo questions trials */
+      var demo = {
+     	  type: 'survey-text',
+     	  questions: [
+     	    {prompt: "How old are you?", name:'age'},
+     	    {prompt: "What is your sex?", placeholder: "Male, Female, Other, Prefer Not to Say, etc.", name:'sex'},
+          {prompt: "What is your weight (in lbs.)", name:'weight'},
+          {prompt: "What is your height (in feet)", name:'height'}
+     	  ],
+   	};
+    /******************************************************************** SELF-JUDGEMENT 1 ************************************************************/
+
+    var selfImage = []; // will contain the body they judge themselves as having
+    var choosebody = function(param){
+       if (Math.floor(images.length*param) > images.length-1){
+     var name = images[images.length-1]
+       } else {
+     var name = images[Math.floor(images.length*param)]}
+
+     selfImage.push(name);
+     console.log(selfImage);
+
+     var html = '<div><img src="'+name+'" style="width:160px;height:296px;" /></div>' +
+     '<p>What body type would you say best matches your own?</p>'+
+     "<p>Use the images above as a references. Press the 'i' key to increase the model's weight and the 'd' key to decrease it. </p>"+
+     "<p>Please be as honest as possible. When you are finished, please press the continue button below</p>"
+
+     return html;
+    }
+
+    var selfchoice = {
+     type: 'reconstruction',
+     stim_function: choosebody,
+     starting_value: 0.5,
+     step_size: 0.016666666,
+     key_increase: 'i',
+     key_decrease: 'd'
+    };
+
+    var selfjudge = {
+     type: "image-keyboard-response",
+     stimulus_height: 296, //original stimulus HxW divided by 3 to fit on screen, but keep ratio
+     stimulus_width: 160,
+     stimulus: function(){return selfImage[selfImage.length - 1]},
+     prompt: "<p>If you had to choose, would you say the model is <strong>overweight</strong> or not?" +
+             "<p> Press A if you think the model is overweight. Press L if you do not.</p>",
+     choices: ['a', 'l']
+    }
+
+
+    /******************************************************************** PICC TASK ************************************************************/
+    //randomize condition
+    if (cond == 0) {
+      var freqs = [.5,.5,.5,.5,.5,.5,.5,.5,.5,.5,.5,.5,.5,.5,.5,.5]
+  } else if (cond == 1) {
+      var freqs = [.5,.5,.5,.5,.4,.28,.14,.06,.06,.06,.06,.06,.06,.06,.06,.06]
+    }
+
+    //function to randomize stimuli
+    function stimRandomizer(block,freq,numtrials) {
+      thin = [];
+      fat = [];
+	for (i in _.range(10, 310, 10)) {
+		if (_.range(10, 310, 10)[i] < 100) {
+			thin.push('stim/T0'+_.range(10, 310, 10)[i]+'.jpg')
+			fat.push('stim/H0'+_.range(10, 310, 10)[i]+'.jpg')
+		} else {
+			thin.push('stim/T'+_.range(10, 310, 10)[i]+'.jpg')
+			fat.push('stim/H'+_.range(10, 310, 10)[i]+'.jpg')
+		}
+	}
+      signals = _.sample(fat, Math.round(numtrials*freq));
+      noise = _.sample(thin, Math.round(numtrials*(1-freq)));
+      stim = _.sample(signals.concat(noise), numtrials);
+
+      return stim
+    }
+
+    //produce trial lists and save them in array for pre-loading
+    var practicestim = stimRandomizer(1,pracfreq,numpractrials)
+    var alltrials = []; // all trials to be used in the task
+    for(i in _.range(numblocks)){
+      alltrials.push(stimRandomizer(blocks[i], freqs[i], numtrials))
+    }
+
+    /* define instructions trials */
+
+    var inst = {
+	    type: 'instructions',
+	    pages: [
+    'Thank you for answering our questions! You are now ready to proceed to the main task. Click next to begin.',
+
+		"<p>In this task, you will see a series of body images. </p>" +
+		"<p>The images will be presented on the screen one at a time. </p>" +
+		"<p>Your tasks in this study will be to identify bodies you think think are <strong>overweight</strong>.</p>",
+
+		"<p>When you see a body on the screen that you think is overweight, press the 'A' key.</p>"+
+		"<p>For all other bodies, press the 'L' key. </p>",
+
+		"<p>The bodies will be presented in series with breaks in between. </p>"+
+		"<p>This means that you will see a series of bodies, have a short break, and then another series of bodies, until you have seen	<strong>16 series.</strong></p>",
+
+		"<p>Some of the series you see may have a lot of overweight bodies, and others may have only a few.</p>" +
+		"<p>There is nothing for you to keep track of. Just make each choice as honestly as you can</p>",
+
+		"<p>Please respond <strong>after</strong> you see each body. A <strong>?</strong> will appear when it is time to answer. </p>" +
+		"<p>You should do your best to answer quickly and accurately during the study. However, if you make a mistake and hit the wrong button at any point, don't worry -- just keep going.</p>",
+
+		"<p>Now you will complete a brief practice block to learn how the task works.</p>"+
+		"<p>Go back through the instructions if you do not yet understand the task.</p>" +
+		"<p>Click next when you're ready to start!</p>"
+	    ],
+	    show_clickable_nav: true
+}
+
+    var i8 = { // after practice trials
+      type: "html-keyboard-response",
+      stimulus: "<p>You have now completed the practice series.</p>"+
+		"<p>If you have any questions, please reload this page and read the instructions again.</p>"+
+		"<p>Otherwise, you're ready to begin the study.</p>"+
+    "<p><strong>REMEMBER</strong>: Press 'A' when you think the model is overweight, and 'L' if not. </p>"+
+		"<p>Press SPACE when you're ready to start!</p>",
+      choices: ['space'],
+      post_trial_gap: poststimtime
+    };
+
+    var end = {
+      type: "html-keyboard-response",
+      stimulus: "<p>You have finished the main task!</p>"+
+		            "<p>You are almost done the entire experiment. There are only a few short things left to do.</p>"+
+                "<p>On the next screen, there will be just one more body to judge.</p>"+
+                "<p>When you are ready, press SPACE to proceed to this last judgement.</p>",
+      choices: ['space']
+    };
+
+/* define practice trials */
+  var pCount = 0;
+  var pstim = {
+    type: "image-keyboard-response",
+    stimulus_height: 593, //original stimulus HxW divided by 3 to fit on screen, but keep ratio
+    stimulus_width: 320,
+    stimulus: function(){
+      stim = practicestim[pCount];
+      pCount = pCount + 1;
+      return stim
+    },
+    trial_duration: stimtime
+  }
+
+/* define trials */
+  var blockCount = 0;
+  var trialCount = 0;
+
+  var block = {
+    type: 'html-keyboard-response',
+    stimulus: function(){
+      text = "<p>Block "+(blockCount+1)+"</p><p>Press SPACE to continue.</p>";
+      blockCount = blockCount + 1;
+      trialCount = 0; // reset trials back down to zero
+
+      return text
+    },
+    choices: ['space'],
+    post_trial_gap: postblocktime
+  }
+
+  var stim = {
+    type: "image-keyboard-response",
+    stimulus_height: 593, //original stimulus HxW divided by 3 to fit on screen, but keep ratio
+    stimulus_width: 320,
+    stimulus: function(){
+      stim = alltrials[blockCount-1][trialCount];
+      trialCount = trialCount + 1;
+      return stim
+    },
+    trial_duration: stimtime
+  };
+
+  var fixation = {
+    type: 'html-keyboard-response',
+    stimulus: '<div style="font-size:60px;">?</div>',
+    choices: ['a', 'l'],
+  }
+
+  var iti = {
+    type: 'html-keyboard-response',
+    stimulus: '',
+    trial_duration: poststimtime
+  }
+
+  var ptrials = {
+    timeline: [pstim, fixation, iti],
+    repetitions: numpractrials,
+  }
+
+  var trials = {
+    timeline: [stim, fixation, iti],
+    repetitions: numtrials,
+  }
+
+/************************************************************************** SELF JUDGEMENT 2 ********************************************************/
+var selfjudge2 = {
+ type: "image-keyboard-response",
+ stimulus_height: 296, //original stimulus HxW divided by 3 to fit on screen, but keep ratio
+ stimulus_width: 160,
+ stimulus: function(){return selfImage[selfImage.length - 1]},
+ prompt: "<p>Please judge this last body in the same way.</p>"+
+         "<p>If you had to choose, would you say the model is <strong>overweight</strong> or not?</p>" +
+         "<p> Press A if you think the model is overweight. Press L if you do not.</p>",
+ choices: ['a', 'l']
+}
+
+var instself = { // after practice trials
+  type: "html-keyboard-response",
+  stimulus: "<p>Thank you! </p>" +
+            "<p>The last thing we will ask you to do is please just to again tell us what model best matches your body.<p>"+
+            "<p>You will do this on the next screen. Press SPACE to continue</p>",
+  choices: ['space'],
+  post_trial_gap: poststimtime
+};
+
+var selfchoice2 = {
+ type: 'reconstruction',
+ stim_function: choosebody,
+ starting_value: 0.5,
+ step_size: 0.016666666,
+ key_increase: 'i',
+ key_decrease: 'd'
+};
+
+var finish = {
+  type: "html-keyboard-response",
+  stimulus: "<p>You have finished the entire experiment!</p>"+
+            "<p>You may now exit the window</p>",
+  choices: ['e']
+};
+
+
+/************************************************************************* INIT *********************************************************************/
+  var timeline = [fs, welcome, demo, selfchoice, selfjudge, inst, ptrials, i8]
+  for (i in _.range(numblocks)){
+    timeline.push(block);
+    timeline.push(trials);
+  }
+  timeline.push(end, selfjudge2, instself, selfchoice2, finish)
+//run and save data
+    jsPsych.init({
+      timeline: timeline,
+      preload_images: images,
+      show_preload_progress_bar: true,
+});
+  </script>
+</html>

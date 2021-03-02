@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.6.0/underscore.js" type="text/javascript"></script>
+    <script src="src/jspsych/jspsych.js"></script>
+    <script src="src/jspsych//plugins/jspsych-html-keyboard-response.js"></script>
+    <script src="src/jspsych//plugins/jspsych-reconstruction.js"></script>
+    <script src="src/jspsych/plugins/jspsych-image-keyboard-response.js"></script>
+    <link rel="stylesheet" href="src/jspsych/css/jspsych.css"></link>
+  </head>
+  <body></body>
+  <script>
+
+     /* put images in list in order*/
+  var images = [];
+	x = _.range(10, 310, 10).reverse();
+	for (i in x) {
+		if (x[i] >= 100) {
+			images.push('stim/T'+x[i]+'.jpg')//thin
+		} else {
+			images.push('stim/T0'+x[i]+'.jpg')
+		}
+	}
+	images.push('stim/N000.jpg') ;// neutral
+	for (i in _.range(10, 310, 10)) {
+		if (_.range(10, 310, 10)[i] < 100) {
+			images.push('stim/H0'+_.range(10, 310, 10)[i]+'.jpg')//fat
+		} else {
+			images.push('stim/H'+_.range(10, 310, 10)[i]+'.jpg')
+		}
+	}
+
+  var selfImage = []; // will contain the body they judge themselves as having
+  var choosebody = function(param){
+      if (Math.floor(images.length*param) > images.length-1){
+  	var name = images[images.length-1]
+      } else {
+  	var name = images[Math.floor(images.length*param)]}
+
+    selfImage.push(name);
+    console.log(selfImage);
+
+    var html = '<div><img src="'+name+'" style="width:160px;height:296px;" /></div>' +
+		'<p>What body type would you say you have?</p>'+
+		"<p>Use the images above as a references. Press the 'i' key to increase the model's weight and the 'd' key to decrease it. </p>"+
+		"<p>Please be as honest as possible. When you are finished, please press the continue button below</p>"
+
+    return html;
+  }
+
+  var selfchoice = {
+    type: 'reconstruction',
+    stim_function: choosebody,
+    starting_value: 0.5,
+    step_size: 0.016666666,
+    key_increase: 'i',
+    key_decrease: 'd'
+  };
+
+  var selfjudge = {
+    type: "image-keyboard-response",
+    stimulus_height: 296, //original stimulus HxW divided by 3 to fit on screen, but keep ratio
+    stimulus_width: 160,
+    stimulus: function(){return selfImage[selfImage.length - 1]},
+    prompt: "<p>If you had to choose, would you say the model is <strong>overweight</strong> or not?" +
+            "<p> Press A if you think the model is overweight. Press L if you do not.</p>",
+    choices: ['a', 'l']
+  }
+
+  jsPsych.init({
+    timeline: [selfchoice, selfjudge],
+    preload_images: images,
+    show_preload_progress_bar: true,
+    on_finish: function() { jsPsych.data.displayData(); }
+  });
+
+  </script>
+</html>
