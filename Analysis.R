@@ -47,7 +47,7 @@ d$size = ifelse(substring(d$stimulus, 1, 1) == 'T',
 
 # factors where needed
 d$block=factor(d$block, levels = 1:16)
-d$condition = factor(ifelse(d$condition==1, 'Decrease', 'Stable'), levels = c('Stable', 'Decrease'))
+d$condition = factor(ifelse(d$condition==1, 'Increase', 'Stable'), levels = c('Stable', 'Increase'))
 
 d = d[is.na(d$block)==F,] # remove practice trials 
 
@@ -188,18 +188,22 @@ piccplot2 <-
   theme_classic()
 
 # * Analyse ####
-# m4 may not converge: use allFit(m4) to find best optimizer
-# m4_af <- allFit(m4)
+# m6 may not converge: use allFit(m4) to find best optimizer
+# m6_af <- allFit(m4)
 glm0 <- glm(key_press ~ 1, family = 'binomial', data=d)
 m0 <- glmer(key_press ~ 1 + (1|subject), family='binomial', data=d)
 m1 <- glmer(key_press ~ 1 + (trial0|subject), family='binomial', data=d)
 m2 <- glmer(key_press ~ size0 + (trial0|subject), family='binomial', data=d)
-m3 <- glmer(key_press ~ trial0*size0 + (trial0|subject), family='binomial', data=d)
-m4 <- glmer(key_press ~ condition*trial0*size0 + (trial0|subject), family='binomial', glmerControl(optimizer = 'bobyqa'), data=d)
+m3 <- glmer(key_press ~ trial0+size0 + (trial0|subject), family='binomial', data=d)
+m4 <- glmer(key_press ~ trial0*size0 + (trial0|subject), family='binomial', data=d)
+m5 <- glmer(key_press ~ condition+trial0*size0 + (trial0|subject), family='binomial', glmerControl(optimizer = 'bobyqa'), data=d)
+m6 <- glmer(key_press ~ condition*trial0*size0 + (trial0|subject), family='binomial', glmerControl(optimizer = 'bobyqa'), data=d)
 
-anova(m4, m3, m2, m1, m0)
-
-tab_model(m4, 
+anova(m6, m5, m4, m3, m2, m1, m0)
+anova(m3, m6)
+# anova(m3, m6)$`Pr(>Chisq)`              # for exact pvalue
+# summary(m6)$coefficients[, 'Pr(>|z|)']  # for exact pvalue
+tab_model(m6, 
           pred.labels = c('Intercept', 'Condition', 'Trial0', 'Size0', 
                           'Condition \u00D7 Trial0',
                           'Condition \u00D7 Size0',
@@ -242,7 +246,7 @@ cat_plot <-
     stat_summary(fun.data = mean_se, geom = "errorbar", position = position_dodge(width=0.95), width = 0.2) +
     scale_fill_brewer(palette = 'Dark2') + 
     coord_cartesian(ylim=c(0.10, 0.30)) + 
-    labs(x = '', y = 'p(Choose Overweight)', fill='', title = 'Categorical Judgements') + 
+    labs(x = '', y = 'p(Choose Overweight)', fill='', title = 'Change in Self-Concept') + 
     theme_bw() + 
     theme(plot.title = element_text(hjust=0.5),
         plot.tag = element_text(size=20))
@@ -260,7 +264,7 @@ cont_plot <-
     coord_cartesian(ylim = c(0.45, 0.55)) + 
     scale_fill_brewer(palette = 'Dark2') +
     labs(x = '', y = 'Mean Size of Chosen Model', 
-         fill='', title = 'Continuous Judgements') +
+         fill='', title = 'Change in Self-Image') +
     theme_bw() +
     theme(plot.title = element_text(hjust=0.5), 
           plot.tag = element_text(size=20)) 
@@ -310,12 +314,19 @@ self_dat <-
   select(subject, condition, contains('self'))
 
 # * * Categorical ####
-cat.mord <- MASS::polr(selfcat ~ condition, data = self_dat, Hess = T)
+cat.mord0 <- MASS::polr(selfcat ~ 1, data = self_dat, Hess = T)
+cat.mord1 <- MASS::polr(selfcat ~ condition, data = self_dat, Hess = T)
+cat.mord1.pvals <- pnorm(abs(coef(summary(cat.mord1))[, "t value"]),lower.tail = FALSE)*2
+cbind(coef(summary(cat.mord1)), "p" = cat.mord1.pvals)
+anova(cat.mord0, cat.mord1)
+# predict(object = cat.mord1, data.frame(condition=c('Stable', 'Increase')), type="p")
 
 # * * Continuous ####
-cont.m <- lm(selfcont ~ condition, data=self_dat)
+cont.m0 <- lm(selfcont ~ 1, data=self_dat)
+cont.m1 <- lm(selfcont ~ condition, data=self_dat)
+anova(cont.m0, cont.m1)
 
-tab_model(cat.mord, cont.m, 
+tab_model(cat.mord1, cont.m1, 
           pred.labels = c('\u03B6 Thinner|No Change', '\u03B6 No Chnage|Heavier', 
                           'Condition', 'Linear Intercept'), 
           dv.labels = c('Categorical Judgements', 'Continuous Judgements'), 
@@ -362,22 +373,21 @@ raneff_self_plot <-
   theme(plot.title = element_text(hjust = 0.5))
 
 ggarrange(raneff_selfjudge_plot, raneff_self_plot, labels=letters[1:2], 
-          common.legend = T, legend='bottom')
+          common.legend = F, legend='bottom')
 
 # * * Analyse ####
 raneff.self.lm <- lm(selfcont ~ trial0*condition, data=raneffs_self)
-raneff.selfjudge.olm <- MASS::polr(selfcat ~ condition*trial0, data = raneffs_self, Hess = T)
+cat.mord2 <- MASS::polr(selfcat ~ condition+trial0, data = raneffs_self, Hess = T)
+cat.mord3 <- MASS::polr(selfcat ~ condition*trial0, data = raneffs_self, Hess = T)
 
-tab_model(raneff.selfjudge.olm, raneff.self.lm)
+anova(cat.mord3, cat.mord2, cat.mord1)
+
 raneff_selfjudge_plot_pred <- 
-  plot_model(raneff.selfjudge.olm, type='pred', terms = 'trial0 [all]') + 
+  plot_model(cat.mord2, type='pred', terms = 'trial0') + 
   labs(x =expression(hat("\u03B2")['trial0 id']^"EB"),
        y = 'Change in Judgement\nPre-Post', 
        title = 'Predicted Probabilities of\nJudgement Change') + 
   theme_bw()
-
-ggarrange(raneff_selfjudge_plot, raneff_selfjudge_plot_pred, labels=letters[1:2], 
-          legend='bottom')
 
 # Questionnaire Data ------------------------------------------------------
 # * EDEQ ####
@@ -451,7 +461,8 @@ self_q <-
   full_join(., bsqr) %>% 
   full_join(., bsi) %>% 
   full_join(., nfc) %>% 
-  select(subject, condition, s1selfjudge, s2selfjudge, selfcont, contains('sum'))
+  select(subject, condition, s1selfjudge, s2selfjudge, selfcat, selfcont,
+         contains('sum'))
 
 # * * * Visualise ####
 self_q_plot <- 
@@ -505,8 +516,9 @@ ggarrange(plotlist = selfjudge_q_plotlist, common.legend = T, legend = 'bottom',
           labels = letters[1:length(qs)])
 
 # * * * Analyse ####
-self.q.lm <- lm(selfcont ~ edeq_sum + bsqr_sum + bsi_sum + nfc_sum, data=self_q)
-
+# check scores continuously
+cat.mord4 <- MASS::polr(selfcat ~ condition + edeq_sum + bsqr_sum + bsi_sum + nfc_sum, data = self_q, Hess = T)
+self.q.cont <- lm(selfcont ~ edeq_sum + bsqr_sum + bsi_sum + nfc_sum, data=self_q)
 
 # Misc. 
 # check to see if people have backward key mapping 
@@ -541,4 +553,24 @@ for(id in unique(d$subject)) {
   
 }
 dev.off()
-  
+
+# Computational Models ####
+modeldata <- data.frame(
+  id = d$subject, 
+  condition = d$condition, 
+  RT = as.numeric(as.character(d$rt)), 
+  response = d$key_press, 
+  trialintensity = d$size
+)
+
+# * Wilson (2018) model ####
+source('Models/seq/fitpicc.R')
+
+seq.fit <- fitpicc(modeldata, stim='bodies', quickfit=T, verbose=T)
+
+# * Drift Diffusion Model ####
+library(rtdists)
+source('Models/DDM/fitddm.R')
+ddm.fit <- fitddm(modeldata, quickfit = T, verbose = T)
+
+
