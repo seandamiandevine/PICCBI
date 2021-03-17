@@ -1,5 +1,5 @@
 # PICCBI
-Devine, Germaine, Erhlich, &amp; Eppinger (in prep). Prevalence induced concept change in body image judgements. Task code.
+Devine, Germain, Ehrlich, &amp; Eppinger (in prep). Prevalence induced concept change in body image judgements. Task code.
 
 ## File Structure
 
@@ -8,16 +8,49 @@ Devine, Germaine, Erhlich, &amp; Eppinger (in prep). Prevalence induced concept 
 ├── Analysis.R
 ├── data
 ├── debugdata
-├── PICCBI_2021.RData
-├── Raw_PICCBI_DF.rds
-├── README.md
+├── Models
+│   ├── DDM
+│   │   ├── ddm_loglik.R
+│   │   ├── DDM_old.R
+│   │   ├── DDM_rtdists.R
+│   │   ├── ensure_fit.R
+│   │   ├── findreasonablex0range.R
+│   │   ├── fitddm.R
+│   │   ├── getx0.R
+│   │   ├── out
+│   │   └── reconstructfitdf.R
+│   └── seq
+│       ├── fitpicc.R
+│       ├── getx0.R
+│       ├── loglik.R
+│       ├── out
+│       └── recreatefitdf.R
 └── task
-    ├── index.html
     ├── old
-    ├── README.md
     ├── src
+    │   ├── jspsych
+    │   │   ├── css
+    │   │   ├── examples
+    │   │   │   ├── css
+    │   │   │   ├── demos
+    │   │   │   ├── external_html
+    │   │   │   ├── img
+    │   │   │   │   └── age
+    │   │   │   ├── js
+    │   │   │   ├── sound
+    │   │   │   └── video
+    │   │   └── plugins
+    │   │       └── template
+    │   └── rangeslider
+    │       ├── css
+    │       ├── js
+    │       └── src
+    │           ├── css
+    │           └── js
     ├── stim
-    ├── Stimuli-Information.pdf
     └── sub
+        └── html
+            └── css
+
 
 ```
