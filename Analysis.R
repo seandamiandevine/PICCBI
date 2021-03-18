@@ -78,7 +78,7 @@ demopre = d %>%
 badsubjects <- c('q4758ogyy5oyy6q','ehdlzjl5vh4ln87', 'ay6n6kdz1bsd52h', 'ohkm9vdkst3zghh', 
                  'x5qje3v52jfzumf') # see subject curves 
 d = d %>% filter(!subject %in% badsubjects,
-                 age <= 28 | is.na(age)==F, # exclude anyone older than 28
+                 age <= 30 | is.na(age), # exclude anyone older than 30
                  sexcode == 1, # exclude men and others
                  tolower(mentdrug) %in% c('no', NA, 'n/a', 'na', 'none', 'n/a.', 'n\\a'), # exclude anyone with current or past mental health issues
                  !subject %in% (d %>% group_by(subject) %>%  # exclude subjects with rts > 7 s on +10 trials
@@ -140,6 +140,64 @@ sanitycheckplot <-
   labs(x = 'Trial', y='Average Model Size', colour='Prevalence' ) + 
   theme_bw()
   
+# BMI vs. Chosen model 
+bmi <- full_join(q[, c('subject', 'weight', 'height')],
+                 d[, c('subject', 's1self', 's2self', 's1selfjudge', 's2selfjudge')]) %>% 
+  group_by(subject) %>% 
+  slice(1)
+
+kg <- c()
+for(weight in 1:length(bmi$weight)) {
+  if(grepl(',', bmi$weight[weight])) bmi$weight[weight] = gsub(',','.', bmi$weight[weight])
+  
+  if(is.na(bmi$weight[weight])) {
+    kg[weight] = NA
+  } else if(grepl('stone', bmi$weight[weight])){
+            kg[weight] = as.numeric(gsub('\\D+', '', bmi$weight[weight])) * 6.35029
+  } else if(grepl('kg', tolower(bmi$weight[weight]))){
+    kg[weight] =  as.numeric(gsub('\\D+', '', bmi$weight[weight]))
+  } else if(grepl('lb', bmi$weight[weight])) {
+    kg[weight] = as.numeric(gsub('[a-zA-Z]', '', bmi$weight[weight])) * 0.453592
+  } else if(as.numeric(bmi$weight[weight]) < 90){
+    kg[weight] = as.numeric(bmi$weight[weight])
+  } else {
+    kg[weight] = as.numeric(bmi$weight[weight]) * 0.453592
+  }
+}
+
+meters <- c()
+for(m in 1:length(bmi$height)) {
+  thisheight = bmi$height[m]
+  thisheight = gsub('\'', '.', thisheight)
+  thisheight = gsub('foot', '.', thisheight)
+  thisheight = gsub('inches', '', thisheight)
+  thisheight = gsub('meters', '', thisheight)
+  thisheight = gsub(',', '.', thisheight)
+  if(grepl('cm', thisheight)) {
+    thisheight = as.numeric(gsub('[a-zA-Z ]', '', thisheight))
+    meters[m] = thisheight/100
+    next
+  } else if(grepl(' m', thisheight)) {
+    thisheight = as.numeric(gsub('[a-zA-Z ]', '', thisheight))
+    meters[m] = thisheight
+    next
+  }
+  
+  feet <- as.numeric(strsplit(thisheight, split= '[.]')[[1]][1])
+  if(length(strsplit(thisheight, split= '[.]')[[1]]) == 1) {
+    inches = 0
+  } else {
+    inches <- as.numeric(strsplit(thisheight, split= '[.]')[[1]][2])
+  }
+  meters[m] = feet*0.3048 + inches*0.0254
+  if(meters[m] < 1 | meters[m] > 2.25) meters[m] = NA
+  #if(is.na(meters[m])) break
+}
+
+bmi$bmi <- kg/(meters^2)
+
+plot(bmi$bmi, bmi$s1self, xlab='BMI', ylab = 'Size of Model\nTime 1')
+cor.test(bmi$bmi, bmi$s1self)
 
 # Model Judgements  ----------------------------------------------------------
 # * Visualise #### 
@@ -336,58 +394,61 @@ tab_model(cat.mord1, cont.m1,
 # * Relationship Between Model and Self Judgements ####
 raneffs_self <- full_join(raneffs, self_dat)
 
-# * * Visualise ####
-facetlabs = c(`Low EB` = expression(hat("\u03B2")['trial0 id']^"EB"), 
-               `High EB`= expression(hat("\u03B2")['trial0 id']^"EB"))
+# * * Analyse ####
+# Categorical
+cat.mord2 <- MASS::polr(selfcat ~ condition+trial0, data = raneffs_self, Hess = T)
+cat.mord3 <- MASS::polr(selfcat ~ condition*trial0, data = raneffs_self, Hess = T)
+Anova(cat.mord3)
 
+#Continuous
+cont.m2 <- lm(selfcont ~ trial0+condition, data=raneffs_self)
+cont.m3 <- lm(selfcont ~ trial0*condition, data=raneffs_self)
+Anova(cont.m3)
+
+# * * Visualise ####
 raneff_selfjudge_plot <- 
   raneffs_self %>% 
-  mutate(ebbin = ntile(trial0, 2), 
-         ebbin = factor(ifelse(ebbin==1, 'Low', 'High'), 
-                        levels = c('Low', 'High'))) %>% 
+  mutate(ebbin = ifelse(trial0 < 0, 1, 2),  
+         ebbin = factor(ifelse(ebbin==1, 'EB < Zero', 'EB > Zero'), 
+                        levels = c('EB < Zero', 'EB > Zero'))) %>%
   ungroup() %>% 
   select(subject, condition, ebbin, s1selfjudge, s2selfjudge) %>% 
   melt(id.vars = c('subject', 'condition', 'ebbin')) %>%
   mutate(variable = recode_factor(as.factor(variable), 
                                   's1selfjudge' = 'Pre-Task', 
                                   's2selfjudge' = 'Post-Task')) %>%
-  ggplot(aes(x = condition, y = value, fill=variable)) + 
+  ggplot(aes(x = variable, y = value)) + 
   stat_summary(fun.y=mean, geom='bar', position=position_dodge(width=0.95)) + 
   stat_summary(fun.data = mean_se, geom = "errorbar", position = position_dodge(width=0.95), width = 0.2) +
-  facet_grid(~ebbin, labeller=label_bquote(cols = .(as.character(ebbin))~hat("\u03B2")['trial0 id']^"EB")) + 
-  scale_fill_brewer(palette = 'Dark2') + 
-  coord_cartesian(ylim=c(0.10, 0.30)) + 
-  labs(x = '', y = 'p(Choose Overweight)', fill='', title = 'Categorical Judgements') + 
+  facet_grid(~ebbin) +
+  coord_cartesian(ylim = c(0.1, 0.3)) +
+  labs(x = '', y = 'p(Choose Overweight)', fill='', title = 'Self-Concept') + 
   theme_bw() + 
   theme(plot.title = element_text(hjust=0.5),
         plot.tag = element_text(size=20))
+
+raneff_selfjudge_plot_pred <- 
+  plot_model(cat.mord2, type='pred', terms = 'trial0') + 
+  labs(x ="EB",
+       y = 'Change in Judgement\nPre-Post', 
+       title = 'Predicted Probabilities of\nSelf-Concept Change') + 
+  theme_bw() + 
+  theme(plot.title = element_text(hjust = 0.5))
 
 raneff_self_plot <- 
   raneffs_self %>% 
   ggplot(aes(x = trial0, y = selfcont, color = condition)) + 
   geom_point(alpha=0.2) + 
   geom_smooth(method = 'lm', se=F, size = 1.5) + 
-  labs(x = expression(hat("\u03B2")['trial0 id']^"EB"), y = 'Change in Chosen Model\nPre vs. Post', 
-       colour='Condition', title = 'Continuous Judgements') + 
+  labs(x = "EB", y = 'Change in Chosen Model\nPre vs. Post', 
+       colour='Condition', title = 'Self-Image') + 
   theme_bw() + 
   theme(plot.title = element_text(hjust = 0.5))
 
-ggarrange(raneff_selfjudge_plot, raneff_self_plot, labels=letters[1:2], 
+ggarrange(raneff_self_plot,
+          ggarrange(raneff_selfjudge_plot, raneff_selfjudge_plot_pred, nrow=2, labels=letters[2:3]),
+          labels=letters[1], 
           common.legend = F, legend='bottom')
-
-# * * Analyse ####
-raneff.self.lm <- lm(selfcont ~ trial0*condition, data=raneffs_self)
-cat.mord2 <- MASS::polr(selfcat ~ condition+trial0, data = raneffs_self, Hess = T)
-cat.mord3 <- MASS::polr(selfcat ~ condition*trial0, data = raneffs_self, Hess = T)
-
-anova(cat.mord3, cat.mord2, cat.mord1)
-
-raneff_selfjudge_plot_pred <- 
-  plot_model(cat.mord2, type='pred', terms = 'trial0') + 
-  labs(x =expression(hat("\u03B2")['trial0 id']^"EB"),
-       y = 'Change in Judgement\nPre-Post', 
-       title = 'Predicted Probabilities of\nJudgement Change') + 
-  theme_bw()
 
 # Questionnaire Data ------------------------------------------------------
 # * EDEQ ####
@@ -402,14 +463,14 @@ bsqr <-
   q %>% 
   select(contains(c('subject', 'BSQR'))) %>% 
   mutate_at(vars(starts_with("BSQR")),funs(as.numeric)) %>% 
-  mutate(bsqr_sum = rowSums(select(., starts_with("BSQR")), na.rm = TRUE))
+  mutate(bsqr_mean = rowMeans(select(., starts_with("BSQR")), na.rm = TRUE))
 
 # * BSI #### 
 bsi <- 
   q %>% 
   select(contains(c('subject', 'BSI'))) %>% 
   mutate_at(vars(starts_with("BSI")),funs(as.numeric)) %>% 
-  mutate(bsi_sum = rowSums(select(., starts_with("BSI")), na.rm = TRUE))
+  mutate(bsi_mean = rowMeans(select(., starts_with("BSI")), na.rm = TRUE))
 
 # * NFC #### 
 nfc <- 
@@ -434,7 +495,7 @@ raneffs_q <-
   full_join(., bsqr) %>% 
   full_join(., bsi) %>% 
   full_join(., nfc) %>% 
-  select(subject, condition, trial0, contains('sum')) %>% 
+  select(subject, condition, trial0, contains('sum'), contains('mean')) %>% 
   filter(!is.na(condition))
 
 # * * * Visualise ####
@@ -452,7 +513,7 @@ raneffs_q_plot <-
   theme_bw() 
 
 # * * * Analyse ####
-raneffs.q.lm <- lm(trial0 ~ edeq_sum + bsqr_sum + bsi_sum + nfc_sum, data=raneffs_q)
+raneffs.q.lm <- lm(trial0 ~ edeq_sum + bsqr_mean + bsi_mean, data=raneffs_q)
 
 # * * Self Judgements ####
 self_q <- 
@@ -462,15 +523,16 @@ self_q <-
   full_join(., bsi) %>% 
   full_join(., nfc) %>% 
   select(subject, condition, s1selfjudge, s2selfjudge, selfcat, selfcont,
-         contains('sum'))
+         contains('sum'), contains('mean'))
 
 # * * * Visualise ####
 self_q_plot <- 
   self_q %>% 
-  select(everything(), -contains('selfjudge')) %>% 
+  select(everything(), -contains('selfjudge'), -selfcat) %>% 
   melt(id.vars = c('subject', 'condition', 'selfcont')) %>% 
   mutate(variable = gsub('_sum', '', variable)) %>% 
-  ggplot(aes(x = value, y = selfcont, color=condition)) + 
+  filter(condition=='Increase') %>% 
+  ggplot(aes(x = value, y = selfcont)) + 
   geom_point(alpha=0.2) + 
   geom_smooth(method = 'lm', se=F, size = 1.5) + 
   scale_colour_manual(values=c("#0066CC", '#990000')) +
@@ -480,7 +542,7 @@ self_q_plot <-
   theme_bw() 
 
 selfjudge_q_plotlist <- list()
-qs = names(self_q[grepl('sum', names(self_q))])
+qs = c(names(self_q[grepl('sum', names(self_q))]), names(self_q[grepl('mean', names(self_q))]) )
 for(i in 1:length(qs)) {
   thisvar = qs[i]
   thisvarname = toupper(gsub('_sum', '', thisvar))
@@ -517,8 +579,11 @@ ggarrange(plotlist = selfjudge_q_plotlist, common.legend = T, legend = 'bottom',
 
 # * * * Analyse ####
 # check scores continuously
-cat.mord4 <- MASS::polr(selfcat ~ condition + edeq_sum + bsqr_sum + bsi_sum + nfc_sum, data = self_q, Hess = T)
-self.q.cont <- lm(selfcont ~ edeq_sum + bsqr_sum + bsi_sum + nfc_sum, data=self_q)
+cat.mord4 <- MASS::polr(selfcat ~  edeq_sum + bsqr_mean + bsi_mean, data = self_q, Hess = T)
+self.q.cont <- lm(selfcont ~ edeq_sum + bsqr_mean + bsi_mean, data=self_q)
+
+tab_model(raneffs.q.lm, self.q.cont, cat.mord4, 
+          show.ci = F, show.se = T)
 
 # Misc. 
 # check to see if people have backward key mapping 
@@ -554,7 +619,8 @@ for(id in unique(d$subject)) {
 }
 dev.off()
 
-# Computational Models ####
+
+# Computational Models ----------------------------------------------------
 modeldata <- data.frame(
   id = d$subject, 
   condition = d$condition, 
@@ -565,12 +631,73 @@ modeldata <- data.frame(
 
 # * Wilson (2018) model ####
 source('Models/seq/fitpicc.R')
-
 seq.fit <- fitpicc(modeldata, stim='bodies', quickfit=T, verbose=T)
+
+# * * Visualise parameters ####
+pars = c('B0', 'Bf', 'BF', 'Bc', 'lF', 'lc')
+ranges = list(c(-5, 5), c(0, 20), c(-1, 1), c(-1, 1), c(-1, 1), c(-1, 1))
+plots = list()
+for(p in 1:length(pars)) { 
+  thisplot <- 
+    seq.fit %>%
+    select(id, condition, pars[p]) %>%
+    melt(id.vars=c('id', 'condition')) %>%
+    mutate(condition = factor(condition, levels = c('Stable', 'Increase')), 
+           variable = factor(variable, 
+                             levels = c('B0', 'Bf', 'BF', 'Bc', 'lF', 'lc'), 
+                             ordered = T, 
+                             labels = c(expression('\u03B2'[0]), 
+                                        expression('\u03B2'[f]), 
+                                        expression('\u03B2'[F]), 
+                                        expression('\u03B2'[c]), 
+                                        expression('\u03BB'[F]), 
+                                        expression('\u03BB'[c])))) %>%
+    ggplot(aes(x = variable, y = value, colour = condition)) +
+    stat_summary(fun.y = mean, geom='point') +
+    stat_summary(fun.data = mean_se, geom='errorbar', width=.2) +
+    geom_hline(yintercept = 0, linetype = 'dotted', size= 1) + 
+    facet_wrap(~variable, labeller = label_parsed) +
+    scale_y_continuous(limits = ranges[[p]], 
+                       breaks = seq(ranges[[p]][1], ranges[[p]][2], length.out = 3)) + 
+    labs(x = '', y = ylab, colour = 'Condition') +
+    scale_colour_manual(values=c('#4A3E3D', '#C16527')) + 
+    theme_bw() +
+    theme(plot.title = element_text(hjust=0.5), 
+          strip.text = element_text(size=14), 
+          axis.ticks.x = element_line(size = 0), 
+          axis.text.x = element_blank()) 
+  
+  n = length(plots)+1
+  plots[[n]] <- thisplot
+  
+}
+ggarrange(plotlist = plots, common.legend = T, legend = 'bottom', nrow = 1, ncol = 6)
+
+# * * Analyse relationship b/w params and trial0 ####
+seq.fit$subject <- seq.fit$id
+seq.raneff <- full_join(seq.fit, raneffs)
+seq.raneff$trial0 <- as.numeric(seq.raneff$trial0)
+
+layout(matrix(1:6, 2, 3, byrow=T))
+for(p in c('B0', 'Bf', 'BF', 'Bc', 'lF', 'lc')){
+  plot(x=seq.raneff$trial0, 
+       y=seq.raneff[[p]], 
+       xlab = 'EB', 
+       ylab = p)
+}
 
 # * Drift Diffusion Model ####
 library(rtdists)
 source('Models/DDM/fitddm.R')
 ddm.fit <- fitddm(modeldata, quickfit = T, verbose = T)
 
+ddm.fit$subject <- ddm.fit$id
+ddm.raneff <- full_join(ddm.fit, raneffs)
 
+layout(matrix(1:10, 2, 5, byrow=T))
+for(p in c('a', 't0', 'sv', 'sz', 'z', paste0('v_', 1:5))){
+  plot(x=ddm.raneff$trial0, 
+       y=ddm.raneff[[p]], 
+       xlab = 'EB', 
+       ylab = p)
+}
