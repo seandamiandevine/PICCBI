@@ -1,6 +1,6 @@
 
-set.seed(10408)
-setwd('~/Desktop/Ongoing/PICCBI/Full/Models/RTF_AE')
+set.seed(2021)
+setwd('/Users/seandevine/Documents/PICCBI/Models/RTF_AE')
 source('models.R')
 d = read.csv('clean_dat.csv')
 
@@ -39,7 +39,7 @@ for(id in unique(dsim$subject)){
   Ctl = rbind(Ctl, thissim)
   
   # MW model
-  tau0 =  runif(1, 0.001, 1)
+  tau0 =  0.5 # runif(1, 0.001, 1)
   sigma = runif(1, 0.001, 1)
   alpha = runif(1, 0.001, 1)
   resps = c()
@@ -48,7 +48,7 @@ for(id in unique(dsim$subject)){
   tau=c(tau0)
   for(t in 1:N){
     tau[t+1] = tau[t] + alpha*(stim[t]-tau[t])
-    p = CDF(stim[t], tau[t+1], sigma)
+    p = CDF(stim[t], tau[t], sigma)
     probs[t] = p
     resps[t] = Choice(p)
   }
@@ -66,7 +66,7 @@ for(id in unique(dsim$subject)){
   # RTF Model
   tau = runif(1, 0.01, 1)
   sigma = runif(1, 0.01, 1)
-  nk = round(runif(1, 2, 20))
+  nk = round(runif(1, 2, 10))
   w = .5
   resps = c()
   probs = c()
@@ -106,6 +106,7 @@ for(id in unique(dsim$subject)){
 Niter = 1
 
 # Control model
+cat('------------Fitting Simulated Control Data------------\n')
 RecoveryCtl = data.frame()
 for(id in unique(Ctl$id)) {
   cat('----------', match(id,unique(Ctl$id)), '/', length(unique(Ctl$id)), '----------\n')
@@ -123,9 +124,12 @@ for(id in unique(Ctl$id)) {
       LL = -sum(log(ControlMod(choices, stim, x)))
       min(LL, 1e6)
     }
-    tau0 = runif(1, 0.001, 1)
-    sigma0 = runif(1, 0.001, 1)
-    x0 = c(tau0, sigma0)
+    while(1){
+      tau0 = runif(1, 0.001, 1)
+      sigma0 = runif(1, 0.001, 1)
+      x0 = c(tau0, sigma0)
+      if(obfunc(x0)!=1e6 & !is.na(obfunc(x0))) break
+    }
     optControl = optim(par=x0, fn=obfunc)
     if(optControl$value<bestCtlLL) {
       bestCtlLL = optControl$value
@@ -157,6 +161,7 @@ legend('topleft', bty='n', legend=paste0('r=',round(r,4)))
 dev.off()
  
 # Moving Window model 
+cat('------------Fitting Simulated Moving Window Data------------\n')
 RecoveryMW = data.frame()
 for(id in unique(MW$id)) {
   cat('----------', match(id,unique(MW$id)), '/', length(unique(MW$id)), '----------\n')
@@ -175,20 +180,14 @@ for(id in unique(MW$id)) {
       LL = -sum(log(MovingWindow(choices, stim, x)))
       min(LL, 1e6)
     }
-    tau0 = runif(1, 0.001, 1)
-    sigma0 = runif(1, 0.001, 1)
-    alpha0 = runif(1, 0.001, 1)
-    x0 = c(tau0, sigma0, alpha0)
-    tryCatch(
-      {
-        optMW = optim(par=x0, fn=obfunc, method = 'L-BFGS-B', lower=c(0,0,0), upper = c(1,1,1))
-      }, 
-      error=function(e){
-        optMW = optim(par=x0, fn=obfunc, method = 'L-BFGS-B', lower=c(0,0,0))
-        return(optMW)
-      }
-    )
-    
+    while(1) {
+      #tau0 = runif(1, 0.001, 1)
+      sigma0 = runif(1, 0.001, 1)
+      alpha0 = runif(1, 0.001, 1)
+      x0 = c(sigma0, alpha0)
+      if(obfunc(x0)!=1e6 & !is.na(obfunc(x0))) break
+    }
+    optMW = optim(par=x0, fn=obfunc)
     if(optMW$value < bestMWLL) {
       bestMWLL = optMW$value
       bestMWOpt = optMW
@@ -199,18 +198,18 @@ for(id in unique(MW$id)) {
     next  # failed to fit 
   }
   thisRecov = data.frame(id=id, true_tau=true_tau, true_sigma=true_sigma, true_alpha, 
-                         est_tau=bestMWOpt$par[1], est_sigma=bestMWOpt$par[2], 
-                         est_alpha=bestMWOpt$par[3]) 
+                         est_tau=0.5, est_sigma=bestMWOpt$par[1], 
+                         est_alpha=bestMWOpt$par[2]) 
   RecoveryMW = rbind(RecoveryMW, thisRecov)
 }
 
 pdf('MWRecoveryPlots.pdf')
 
-r = cor(RecoveryMW$true_tau, RecoveryMW$est_tau)
-plot(RecoveryMW$true_tau, RecoveryMW$est_tau, 
-     xlab=expression('True'~tau), ylab=expression('Estimated'~tau), 
-     main='Moving Window') 
-legend('topleft', bty='n', legend=paste0('r=',round(r,4)))
+# r = cor(RecoveryMW$true_tau, RecoveryMW$est_tau)
+# plot(RecoveryMW$true_tau, RecoveryMW$est_tau,
+#      xlab=expression('True'~tau), ylab=expression('Estimated'~tau),
+#      main='Moving Window')
+# legend('topleft', bty='n', legend=paste0('r=',round(r,4)))
 
 r = cor(RecoveryMW$true_sigma, RecoveryMW$est_sigma)
 plot(RecoveryMW$true_sigma, RecoveryMW$est_sigma, 
@@ -227,6 +226,7 @@ legend('topleft', bty='n', legend=paste0('r=',round(r,4)))
 dev.off()
     
 # RTF model 
+cat('------------Fitting Simulated RTF Data------------\n')
 RecoveryRTF = data.frame()
 for(id in unique(RF$id)) {
   cat('----------', match(id,unique(RF$id)), '/', length(unique(RF$id)), '----------\n')
@@ -241,15 +241,18 @@ for(id in unique(RF$id)) {
   bestRTFOpt = list()
   for(iter in 1:Niter){
     cat('*** iteration', iter, '/', Niter, '***\n')
-    obfunc = function(x) {
-      LL = -sum(log(RTF(choices, stim, x)))
+    obfunc = function(params) {
+      LL = -sum(log(RTF(choices, stim, params)))
       min(LL, 1e6)
     }
-    tau0 = runif(1, 0.001, 100)
-    sigma0 = runif(1, 0.001, 100)
-    nk0 = round(runif(1, 2, 20))
-    x0 = c(tau0, sigma0, nk0)
-    optRTF = optim(par=x0, fn=obfunc, method='L-BFGS-B', lower=c(0,0, 0), upper=c(100,100,20))
+    while(1){
+      tau0 = runif(1, 0.001, 1)
+      sigma0 = runif(1, 0.001, 1)
+      nk0 = sample(1:10, size=1)
+      x0 = c(tau0, sigma0, nk0)
+      if(obfunc(x0)!=1e6 & !is.na(obfunc(x0))) break
+    }
+    optRTF = optim(par=x0, fn=obfunc)
     if(optRTF$value < bestRTFLL) {
       bestRTFLL = optRTF$value
       bestRTFOpt = optRTF
@@ -259,9 +262,20 @@ for(id in unique(RF$id)) {
     cat('FAILED TO FIT!\n')
     next  # failed to fit 
   }
+  
+  # Grid-search for nk
+  est_tau = bestRTFOpt$par[1]
+  est_sigma = bestRTFOpt$par[2]
+  probs = c()
+  for(k in 1:20){
+    probs[k] = obfunc(c(est_tau, est_sigma, k))
+  }
+  plot(1:20, probs, xlab='nk', ylab='LL', type='b') # check for convexity
+  probs[is.na(probs)] = 1e6
+  est_nk = match(min(probs), probs)
+  
   thisRecov = data.frame(id=id, true_tau=true_tau, true_sigma=true_sigma, true_nk=true_nk, 
-                         est_tau=bestRTFOpt$par[1], est_sigma=bestRTFOpt$par[2], 
-                         est_nk=bestRTFOpt$par[3]) 
+                         est_tau=est_tau, est_sigma=est_sigma, est_nk=est_nk) 
   RecoveryRTF = rbind(RecoveryRTF, thisRecov)
 }
 
@@ -270,19 +284,19 @@ pdf('RTFRecoveryPlots.pdf')
 r = cor(RecoveryRTF$true_tau, RecoveryRTF$est_tau)
 plot(RecoveryRTF$true_tau, RecoveryRTF$est_tau, 
      xlab=expression('True'~tau), ylab=expression('Estimated'~tau), 
-     main='Moving Window') 
+     main='RTF') 
 legend('topleft', bty='n', legend=paste0('r=',round(r,4)))
 
 r = cor(RecoveryRTF$true_sigma, RecoveryRTF$est_sigma)
 plot(RecoveryRTF$true_sigma, RecoveryRTF$est_sigma, 
      xlab=expression('True'~sigma), ylab=expression('Estimated'~sigma), 
-     main='Moving Window') 
+     main='RTF') 
 legend('topleft', bty='n', legend=paste0('r=',round(r,4)))
 
-r = cor(RecoveryRTF$true_nk, RecoveryRTF$est_nk)
-plot(RecoveryRTF$true_nk, RecoveryRTF$est_nk, 
+r = cor(RecoveryRTF$true_nk, round(RecoveryRTF$est_nk))
+plot(RecoveryRTF$true_nk, round(RecoveryRTF$est_nk), 
      xlab=expression('True'~nk), ylab=expression('Estimated'~nk), 
-     main='Moving Window') 
+     main='RTF') 
 legend('topleft', bty='n', legend=paste0('r=',round(r,4)))
 
 dev.off()

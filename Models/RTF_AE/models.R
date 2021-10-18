@@ -20,16 +20,16 @@ ControlMod = function(resp, x, params) {
 }
 
 MovingWindow = function(resp, x, params) {
-  tau0 = params[1]
-  sigma=params[2]
-  alpha=params[3]
+  tau0 = 0.5 # params[1]
+  sigma = params[1]
+  alpha =  params[2]
   
   N = length(x)
   probs=c()
-  tau = tau0
+  tau = c(tau0)
   for(t in 1:N){
-    tau = tau + alpha*(x[t]-tau)
-    p = CDF(x[t], tau, sigma)    # fat
+    tau[t+1] = tau[t] + alpha*(x[t]-tau[t])
+    p = CDF(x[t], tau[t], sigma) # fat
     if(resp[t]==0) p = 1-p       # not fat
     probs[t] = p
   }
@@ -44,6 +44,10 @@ RTF = function(resp, x, params) {
   N = length(x)
   probs = c()
   for(t in 1:N){
+    if(t == 1) {
+      probs[t] = 0.5
+      next
+    }
     if(t <= nk) {
       thisRange = 1:t 
     } else {
@@ -51,11 +55,12 @@ RTF = function(resp, x, params) {
     }
     maxX = max(x[thisRange])
     minX = min(x[thisRange])
-    rank = match(x[t], sort(x[thisRange]))
+    idx = match(x[t], x[thisRange])
+    rank = rank(x[thisRange])[idx]
     
     range = (x[t]-minX)/(maxX-minX)
-    if(is.na(range)) range = 0
-    freq = (rank-1)/(nk-1)
+    if(is.na(range)) range=0
+    freq = (rank-1)/(length(thisRange)-1)
     y = w*range + (1-w)*freq
     
     p = CDF(y, tau0, sigma)
