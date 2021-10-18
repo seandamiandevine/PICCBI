@@ -2,7 +2,7 @@ library(dplyr); library(reshape2)
 library(ggplot2); library(ggpubr)
 library(lme4)
 library(sjPlot)
-setwd("~/Desktop/Ongoing/PICCBI/Full")
+setwd("/Users/seandevine/Documents/PICCBI/")
 rm(list =ls())
 
 # Load and Clean Data -----------------------------------------------------
@@ -240,7 +240,7 @@ piccplot2 <-
                      labels = c('Very Thin', 'Very Overweight')) + 
   scale_colour_manual(values=c("#0066CC", '#990000')) +
   labs(x = '', 
-       y = '% Change in Overweight Judgements\n(First 200 Trials \u2013 Last 200 Trials)', 
+       y = '% Change in Overweight Judgements\n(Last 200 Trials \u2013 First 200 Trials)', 
        colour = 'Condition') + 
   geom_hline(yintercept = 0) + 
   theme_classic()
