@@ -1,0 +1,65 @@
+Generalized linear mixed model fit by maximum likelihood (Laplace  Approximation)
+ [glmerMod]
+ Family: binomial  ( logit )
+Formula: key_press ~ conditionc * trial0 * size0c + (trial0 | subject)
+   Data: d
+Control: glmerControl(optimizer = "bobyqa")
+
+     AIC      BIC   logLik deviance df.resid 
+ 78816.5  78934.5 -39397.3  78794.5   335189 
+
+Scaled residuals: 
+    Min      1Q  Median      3Q     Max 
+-237.28   -0.06   -0.01    0.02 2307.01 
+
+Random effects:
+ Groups  Name        Variance Std.Dev. Corr
+ subject (Intercept) 1.213    1.101        
+         trial0      1.533    1.238    0.02
+Number of obs: 335200, groups:  subject, 419
+
+Fixed effects:
+                         Estimate Std. Error z value Pr(>|z|)    
+(Intercept)              -1.89815    0.05945 -31.929  < 2e-16 ***
+conditionc                0.08073    0.05921   1.364   0.1727    
+trial0                   -0.62000    0.07860  -7.888 3.08e-15 ***
+size0c                   21.20556    0.19781 107.199  < 2e-16 ***
+conditionc:trial0        -0.65429    0.07761  -8.430  < 2e-16 ***
+conditionc:size0c        -0.48199    0.18925  -2.547   0.0109 *  
+trial0:size0c             2.05145    0.40545   5.060 4.20e-07 ***
+conditionc:trial0:size0c  3.85331    0.38407  10.033  < 2e-16 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Correlation of Fixed Effects:
+            (Intr) cndtnc trial0 size0c cndtnc:t0 cndtnc:s0 trl0:0
+conditionc  -0.002                                                
+trial0      -0.209 -0.031                                         
+size0c      -0.305 -0.012  0.357                                  
+cndtnc:trl0 -0.033 -0.198  0.114  0.035                           
+cndtnc:sz0c -0.013 -0.292  0.028  0.085  0.332                    
+trial0:sz0c  0.231  0.017 -0.392 -0.799 -0.079    -0.137          
+cndtnc:t0:0  0.023  0.215 -0.082 -0.154 -0.364    -0.783     0.393
+
+
+
+----
+Centered at : 
+
+Size0c = 0.5 (300)
+Trial0 = 1 (800)
+Condition = 0
+
+Main effects: 
+Conditionc: For size 300 at the end of the task, no diff between conditions
+trial0:     For size 300 across conditions, negative effect of trial (driven by increase subjects making fewer overall fat judgements due to fewer fat bodies)
+size0c:     On the last trial, across conditions, bigger models were more likely to be judged as overweight
+
+2-way interactions:
+Conditionc x trial0: For size 300, subjects in the increase condition were less sensitive to the effect of trial than those in the stable condition
+Conditionc x size0c: On the last trial, subjects in the increase condition were less sensitive to the effect of size than those in the stable condition
+Trial0 x size0c: Across conditions, subjects judged an average body (size=300) to be larger at the end, compared to the beginning, of the task
+
+3-way interactions:
+Conditionc x trial0c x size0c: The effect of trial on size was much higher in the increase condition than the stable condition (where, in fact, the effect is estimated to be in the opposite direction--2.05-3.85)
+

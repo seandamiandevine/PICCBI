@@ -195,8 +195,6 @@ for(m in 1:length(bmi$height)) {
 }
 
 bmi$bmi <- kg/(meters^2)
-
-plot(bmi$bmi, bmi$s1self, xlab='BMI', ylab = 'Size of Model\nTime 1')
 cor.test(bmi$bmi, bmi$s1self)
 
 # Model Judgements  ----------------------------------------------------------
@@ -248,14 +246,18 @@ piccplot2 <-
 # * Analyse ####
 # m6 may not converge: use allFit(m4) to find best optimizer
 # m6_af <- allFit(m4)
+
+d$size0c = d$size0 - .5
+d$conditionc = ifelse(d$condition=='Increase',1,-1)
+
 glm0 <- glm(key_press ~ 1, family = 'binomial', data=d)
 m0 <- glmer(key_press ~ 1 + (1|subject), family='binomial', data=d)
 m1 <- glmer(key_press ~ 1 + (trial0|subject), family='binomial', data=d)
-m2 <- glmer(key_press ~ size0 + (trial0|subject), family='binomial', data=d)
-m3 <- glmer(key_press ~ trial0+size0 + (trial0|subject), family='binomial', data=d)
-m4 <- glmer(key_press ~ trial0*size0 + (trial0|subject), family='binomial', data=d)
-m5 <- glmer(key_press ~ condition+trial0*size0 + (trial0|subject), family='binomial', glmerControl(optimizer = 'bobyqa'), data=d)
-m6 <- glmer(key_press ~ condition*trial0*size0 + (trial0|subject), family='binomial', glmerControl(optimizer = 'bobyqa'), data=d)
+m2 <- glmer(key_press ~ size0c + (trial0|subject), family='binomial', data=d)
+m3 <- glmer(key_press ~ trial0+size0c + (trial0|subject), family='binomial', data=d)
+m4 <- glmer(key_press ~ trial0*size0c + (trial0|subject), family='binomial', data=d)
+m5 <- glmer(key_press ~ conditionc+trial0*size0c + (trial0|subject), family='binomial', glmerControl(optimizer = 'bobyqa'), data=d)
+m6 <- glmer(key_press ~ conditionc*trial0*size0c + (trial0|subject), family='binomial', glmerControl(optimizer = 'bobyqa'), data=d)
 
 anova(m6, m5, m4, m3, m2, m1, m0)
 anova(m3, m6)
@@ -271,7 +273,7 @@ tab_model(m6,
 
 # Extract ranefs 
 raneffs <- 
-  coef(m4)$subject %>% 
+  coef(m6)$subject %>% 
   mutate(subject = rownames(.), 
          condition = sapply(unique(d$subject),
                             function(x)
@@ -398,12 +400,12 @@ raneffs_self <- full_join(raneffs, self_dat)
 # Categorical
 cat.mord2 <- MASS::polr(selfcat ~ condition+trial0, data = raneffs_self, Hess = T)
 cat.mord3 <- MASS::polr(selfcat ~ condition*trial0, data = raneffs_self, Hess = T)
-Anova(cat.mord3)
+car::Anova(cat.mord3)
 
 #Continuous
 cont.m2 <- lm(selfcont ~ trial0+condition, data=raneffs_self)
 cont.m3 <- lm(selfcont ~ trial0*condition, data=raneffs_self)
-Anova(cont.m3)
+anova(cont.m3)
 
 # * * Visualise ####
 raneff_selfjudge_plot <- 
