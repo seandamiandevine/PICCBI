@@ -47,19 +47,19 @@ cndtnc:t0:0  0.023  0.215 -0.082 -0.154 -0.364    -0.783     0.393
 Centered at : 
 
 Size0c = 0.5 (300)
-Trial0 = 1 (800)
+Trial0 = 0 (1)
 Condition = 0
 
 Main effects: 
-Conditionc: For size 300 at the end of the task, no diff between conditions
+Conditionc: For size 300 at the start of the task, no diff between conditions
 trial0:     For size 300 across conditions, negative effect of trial (driven by increase subjects making fewer overall fat judgements due to fewer fat bodies)
-size0c:     On the last trial, across conditions, bigger models were more likely to be judged as overweight
+size0c:     On the first trial, across conditions, bigger models were more likely to be judged as overweight
 
 2-way interactions:
 Conditionc x trial0: For size 300, subjects in the increase condition were less sensitive to the effect of trial than those in the stable condition
-Conditionc x size0c: On the last trial, subjects in the increase condition were less sensitive to the effect of size than those in the stable condition
+Conditionc x size0c: On the first trial, subjects in the increase condition were less sensitive to the effect of size than those in the stable condition
 Trial0 x size0c: Across conditions, subjects judged an average body (size=300) to be larger at the end, compared to the beginning, of the task
 
 3-way interactions:
-Conditionc x trial0c x size0c: The effect of trial on size was much higher in the increase condition than the stable condition (where, in fact, the effect is estimated to be in the opposite direction--2.05-3.85)
+Conditionc x trial0 x size0c: The effect of trial on an average body (300; size0c) was much higher in the increase condition than the stable condition (where, in fact, the effect is estimated to be slightly in the opposite direction: 2.05-3.85 = -1.80)
 
