@@ -1,6 +1,6 @@
 
-set.seed(2021)
-setwd('/Users/seandevine/Documents/PICCBI/Models/RTF_AE')
+set.seed(10408)
+setwd('~/Desktop/Ongoing/PICCBI/Full/Models/RTF_AE')
 source('models.R')
 d = read.csv('clean_dat.csv')
 
@@ -16,16 +16,17 @@ MW = data.frame()
 RF = data.frame()
 for(id in unique(dsim$subject)){
   cat('Simulating choices for subject', match(id, unique(dsim$subject)), '/', Nsub*2, '\n')
-  stim = dsim[dsim$subject==id, 'size0']
+  stim = round(dsim[dsim$subject==id, 'size0']*100)
   N = length(stim)
+  spectrum = min(stim):max(stim)
   
   # Control model
-  tau = runif(1, 0.001, 1)
-  sigma = runif(1, 0.001, 1)
+  tau = runif(1, 0.001, 100)
+  sigma = runif(1, 0.001, 100)
   resps = c()
   probs = c()
   for(t in 1:N){
-    p = CDF(stim[t], tau, sigma)
+    p = CDF(stim[t], spectrum, tau, sigma)
     probs[t] = p
     resps[t] = Choice(p)
     }
@@ -34,23 +35,24 @@ for(id in unique(dsim$subject)){
                       true_tau = tau, 
                       true_sigma = sigma, 
                       stim = stim,
+                      probs = probs,
                       choices = resps, 
                       model = 'Ctl')
   Ctl = rbind(Ctl, thissim)
   
   # MW model
-  tau0 =  0.5 # runif(1, 0.001, 1)
-  sigma = runif(1, 0.001, 1)
+  tau0 =  runif(1, 0.001, 100)
+  sigma = runif(1, 0.001, 100)
   alpha = runif(1, 0.001, 1)
   resps = c()
   probs = c()
   
   tau=c(tau0)
   for(t in 1:N){
-    tau[t+1] = tau[t] + alpha*(stim[t]-tau[t])
-    p = CDF(stim[t], tau[t], sigma)
+    p = CDF(stim[t], spectrum, tau[t], sigma)
     probs[t] = p
     resps[t] = Choice(p)
+    tau[t+1] = tau[t] + alpha*(stim[t]-tau[t])
   }
   
   thissim = data.frame(id = match(id, unique(dsim$subject)),
@@ -59,54 +61,119 @@ for(id in unique(dsim$subject)){
                        true_sigma = sigma, 
                        true_alpha = alpha,
                        stim=stim,
+                       probs = probs,
                        choices = resps, 
                        model = 'MW')
   MW = rbind(MW, thissim)
     
   # RTF Model
-  tau = runif(1, 0.01, 1)
-  sigma = runif(1, 0.01, 1)
-  nk = round(runif(1, 2, 10))
+  tau = runif(1, 0.001, 100)
+  sigma = runif(1, 0.01, 100)
+  nk = sample(6:100,size=1)
   w = .5
   resps = c()
   probs = c()
   for(t in 1:N){
-    if(t <= nk) {
-      thisRange = 1:t 
+    if(t <= 5) {
+      probs[t] = CDF(stim[t], spectrum, tau, sigma) 
+      next 
+    } else if(t < nk){
+      thisRange = 1:t
     } else {
       thisRange = (t-nk):t
     }
-    maxX = max(stim[thisRange])
-    minX = min(stim[thisRange])
-    rank = match(stim[t], sort(stim[thisRange]))
+    maxXk = max(stim[thisRange])
+    minXk = min(stim[thisRange])
+    idx = match(stim[t], stim[thisRange])
+    rank = rank(stim[thisRange])[idx]
     
-    range = (stim[t]-minX)/(maxX-minX)
-    if(is.na(range)) range = 0
-    freq = (rank-1)/(nk-1)
+    range = (stim[t]-minXk)/(maxXk-minXk)
+    if(is.na(range)) range=0
+    freq = (rank-1)/(length(thisRange)-1)
     y = w*range + (1-w)*freq
+    y = round(y*max(stim))
+    y = ifelse(y<min(stim), min(stim), ifelse(y>max(stim), max(stim), y))
     
-    p = CDF(y, tau, sigma)
+    p = CDF(y, spectrum, tau, sigma)
     probs[t] = p
-    if(t==1) resps[t] = sample(c(0,1), size=1)
     if(t!=1) resps[t] = Choice(p)
     }
-  thissim = data.frame(id = match(id, unique(dsim$subject)),
+    thissim = data.frame(id = match(id, unique(dsim$subject)),
                        condition = as.character(dsim[dsim$subject==id, 'condition'][1]), 
                        true_tau0 = tau, 
                        true_sigma = sigma, 
                        true_nk = nk,
                        stim=stim,
+                       probs = probs,
                        choices = resps, 
                        model = 'RTF')
     RF = rbind(RF, thissim)
   }
+
+
+# Visualize simulations 
+Ctl$trial = unlist(by(Ctl$id, Ctl$id, FUN = function(x) 1:length(x)))
+Ctl$timebin = dplyr::ntile(Ctl$trial, 4)
+Ctl$stimbin = dplyr::ntile(Ctl$stim, 20)
+RF$trial = unlist(by(RF$id, RF$id, FUN = function(x) 1:length(x)))
+RF$timebin = dplyr::ntile(RF$trial, 4)
+RF$stimbin = dplyr::ntile(RF$stim, 20)
+MW$trial = unlist(by(MW$id, MW$id, FUN = function(x) 1:length(x)))
+MW$timebin = dplyr::ntile(MW$trial, 4)
+MW$stimbin = dplyr::ntile(MW$stim, 20)
+
+pdf('plots/simulations.pdf')
+layout(matrix(1:6, 3,2, byrow=T))
+# Ctl model
+# Stable
+mProb = tapply(Ctl$probs, list(Ctl$stimbin, Ctl$timebin, Ctl$condition), mean)
+plot(mProb[,1,'Stable'], type='b', col='red', xaxt='n', ylab='p(Blue)', xlab='', main='Control\nStable', ylim=c(0,1))
+lines(mProb[,4,'Stable'], type='b', col='blue')
+axis(1, at=c(1,20), labels=c('Very Purple', 'Very Blue'))
+legend('topleft', bty='n', lty=1, pch=1, col=c('red', 'blue'), legend=c('First 200 Trials', 'Last 200 Trials'))
+
+# Decreasing
+plot(mProb[,1,'Increase'], type='b', col='red', xaxt='n', ylab='p(Blue)', xlab='', main='Control\nDecreasing', ylim=c(0,1))
+lines(mProb[,4,'Increase'], type='b', col='blue')
+axis(1, at=c(1,20), labels=c('Very Purple', 'Very Blue'))
+#legend('topleft', bty='n', lty=1, pch=1, col=c('red', 'blue'), legend=c('First 200 Trials', 'Last 200 Trials'))
+
+# MW model
+# Stable
+mProb = tapply(MW$probs, list(MW$stimbin, MW$timebin, MW$condition), mean)
+plot(mProb[,1,'Stable'], type='b', col='red', xaxt='n', ylab='p(Blue)', xlab='', main='MW\nStable', ylim=c(0,1))
+lines(mProb[,4,'Stable'], type='b', col='blue')
+axis(1, at=c(1,20), labels=c('Very Purple', 'Very Blue'))
+#legend('topleft', bty='n', lty=1, pch=1, col=c('red', 'blue'), legend=c('First 200 Trials', 'Last 200 Trials'))
+
+# Decreasing
+plot(mProb[,1,'Increase'], type='b', col='red', xaxt='n', ylab='p(Blue)', xlab='', main='MW\nDecreasing', ylim=c(0,1))
+lines(mProb[,4,'Increase'], type='b', col='blue')
+axis(1, at=c(1,20), labels=c('Very Purple', 'Very Blue'))
+#legend('topleft', bty='n', lty=1, pch=1, col=c('red', 'blue'), legend=c('First 200 Trials', 'Last 200 Trials'))
+
+
+# RF model
+# Stable
+mProb = tapply(RF$probs, list(RF$stimbin, RF$timebin, RF$condition), mean)
+plot(mProb[,1,'Stable'], type='b', col='red', xaxt='n', ylab='p(Blue)', xlab='', main='RTF\nStable', ylim=c(0,1))
+lines(mProb[,4,'Stable'], type='b', col='blue')
+axis(1, at=c(1,20), labels=c('Very Purple', 'Very Blue'))
+#legend('topleft', bty='n', lty=1, pch=1, col=c('red', 'blue'), legend=c('First 200 Trials', 'Last 200 Trials'))
+
+# Decreasing
+plot(mProb[,1,'Increase'], type='b', col='red', xaxt='n', ylab='p(Blue)', xlab='', main='RTF\nDecreasing', ylim=c(0,1))
+lines(mProb[,4,'Increase'], type='b', col='blue')
+axis(1, at=c(1,20), labels=c('Very Purple', 'Very Blue'))
+#legend('topleft', bty='n', lty=1, pch=1, col=c('red', 'blue'), legend=c('First 200 Trials', 'Last 200 Trials'))
+
+dev.off()
 
 # Fit ---------------------------------------------------------------------
 
 Niter = 1
 
 # Control model
-cat('------------Fitting Simulated Control Data------------\n')
 RecoveryCtl = data.frame()
 for(id in unique(Ctl$id)) {
   cat('----------', match(id,unique(Ctl$id)), '/', length(unique(Ctl$id)), '----------\n')
@@ -125,8 +192,8 @@ for(id in unique(Ctl$id)) {
       min(LL, 1e6)
     }
     while(1){
-      tau0 = runif(1, 0.001, 1)
-      sigma0 = runif(1, 0.001, 1)
+      tau0 = runif(1, 0.001, 100)
+      sigma0 = runif(1, 0.001, 100)
       x0 = c(tau0, sigma0)
       if(obfunc(x0)!=1e6 & !is.na(obfunc(x0))) break
     }
@@ -145,7 +212,7 @@ for(id in unique(Ctl$id)) {
   RecoveryCtl = rbind(RecoveryCtl, thisRecov)
 }
 
-pdf('CtlRecoveryPlots.pdf')
+pdf('plots/CtlRecoveryPlots.pdf')
 r = cor(RecoveryCtl$true_tau, RecoveryCtl$est_tau)
 plot(RecoveryCtl$true_tau, RecoveryCtl$est_tau, 
      xlab=expression('True'~tau), ylab=expression('Estimated'~tau), 
@@ -161,7 +228,6 @@ legend('topleft', bty='n', legend=paste0('r=',round(r,4)))
 dev.off()
  
 # Moving Window model 
-cat('------------Fitting Simulated Moving Window Data------------\n')
 RecoveryMW = data.frame()
 for(id in unique(MW$id)) {
   cat('----------', match(id,unique(MW$id)), '/', length(unique(MW$id)), '----------\n')
@@ -180,14 +246,16 @@ for(id in unique(MW$id)) {
       LL = -sum(log(MovingWindow(choices, stim, x)))
       min(LL, 1e6)
     }
-    while(1) {
-      #tau0 = runif(1, 0.001, 1)
-      sigma0 = runif(1, 0.001, 1)
+    while(1){
+      tau0 = runif(1, 0.001, 100)
+      sigma0 = runif(1, 0.001, 100)
       alpha0 = runif(1, 0.001, 1)
-      x0 = c(sigma0, alpha0)
+      x0 = c(tau0, sigma0, alpha0)
       if(obfunc(x0)!=1e6 & !is.na(obfunc(x0))) break
     }
-    optMW = optim(par=x0, fn=obfunc)
+    
+    optMW = optim(par=x0, fn=obfunc, method = 'L-BFGS-B', lower=c(0,0,0), upper=c(100,100,1))
+    
     if(optMW$value < bestMWLL) {
       bestMWLL = optMW$value
       bestMWOpt = optMW
@@ -198,18 +266,18 @@ for(id in unique(MW$id)) {
     next  # failed to fit 
   }
   thisRecov = data.frame(id=id, true_tau=true_tau, true_sigma=true_sigma, true_alpha, 
-                         est_tau=0.5, est_sigma=bestMWOpt$par[1], 
-                         est_alpha=bestMWOpt$par[2]) 
+                         est_tau=bestMWOpt$par[1], est_sigma=bestMWOpt$par[2], 
+                         est_alpha=bestMWOpt$par[3]) 
   RecoveryMW = rbind(RecoveryMW, thisRecov)
 }
 
 pdf('MWRecoveryPlots.pdf')
 
-# r = cor(RecoveryMW$true_tau, RecoveryMW$est_tau)
-# plot(RecoveryMW$true_tau, RecoveryMW$est_tau,
-#      xlab=expression('True'~tau), ylab=expression('Estimated'~tau),
-#      main='Moving Window')
-# legend('topleft', bty='n', legend=paste0('r=',round(r,4)))
+r = cor(RecoveryMW$true_tau, RecoveryMW$est_tau)
+plot(RecoveryMW$true_tau, RecoveryMW$est_tau, 
+     xlab=expression('True'~tau[0]), ylab=expression('Estimated'~tau[0]), 
+     main='Moving Window') 
+legend('topleft', bty='n', legend=paste0('r=',round(r,4)))
 
 r = cor(RecoveryMW$true_sigma, RecoveryMW$est_sigma)
 plot(RecoveryMW$true_sigma, RecoveryMW$est_sigma, 
@@ -226,7 +294,6 @@ legend('topleft', bty='n', legend=paste0('r=',round(r,4)))
 dev.off()
     
 # RTF model 
-cat('------------Fitting Simulated RTF Data------------\n')
 RecoveryRTF = data.frame()
 for(id in unique(RF$id)) {
   cat('----------', match(id,unique(RF$id)), '/', length(unique(RF$id)), '----------\n')
@@ -241,14 +308,14 @@ for(id in unique(RF$id)) {
   bestRTFOpt = list()
   for(iter in 1:Niter){
     cat('*** iteration', iter, '/', Niter, '***\n')
-    obfunc = function(params) {
-      LL = -sum(log(RTF(choices, stim, params)))
+    obfunc = function(x) {
+      LL = -sum(log(RTF(choices, stim, x)))
       min(LL, 1e6)
     }
-    while(1){
-      tau0 = runif(1, 0.001, 1)
-      sigma0 = runif(1, 0.001, 1)
-      nk0 = sample(1:10, size=1)
+    while(1) {
+      tau0 = runif(1, 0.001, 100)
+      sigma0 = runif(1, 0.001, 100)
+      nk0 = sample(1:100,size=1)
       x0 = c(tau0, sigma0, nk0)
       if(obfunc(x0)!=1e6 & !is.na(obfunc(x0))) break
     }
@@ -262,21 +329,23 @@ for(id in unique(RF$id)) {
     cat('FAILED TO FIT!\n')
     next  # failed to fit 
   }
-  
   # Grid-search for nk
   est_tau = bestRTFOpt$par[1]
   est_sigma = bestRTFOpt$par[2]
   probs = c()
-  for(k in 1:20){
-    probs[k] = obfunc(c(est_tau, est_sigma, k))
+  grid = 6:100
+  for(k in grid){
+    probs = c(probs, obfunc(c(est_tau, est_sigma, k)))
   }
-  plot(1:20, probs, xlab='nk', ylab='LL', type='b') # check for convexity
+  plot(grid, probs, xlab='nk', ylab='LL', type='b') # check for convexity
   probs[is.na(probs)] = 1e6
-  est_nk = match(min(probs), probs)
+  est_nk = grid[match(min(probs), probs)]
+  legend('topright', bty='n',legend=paste0('true=',true_nk,'\nest=',est_nk))
   
   thisRecov = data.frame(id=id, true_tau=true_tau, true_sigma=true_sigma, true_nk=true_nk, 
                          est_tau=est_tau, est_sigma=est_sigma, est_nk=est_nk) 
   RecoveryRTF = rbind(RecoveryRTF, thisRecov)
+
 }
 
 pdf('RTFRecoveryPlots.pdf')
@@ -284,19 +353,19 @@ pdf('RTFRecoveryPlots.pdf')
 r = cor(RecoveryRTF$true_tau, RecoveryRTF$est_tau)
 plot(RecoveryRTF$true_tau, RecoveryRTF$est_tau, 
      xlab=expression('True'~tau), ylab=expression('Estimated'~tau), 
-     main='RTF') 
+     main='Moving Window') 
 legend('topleft', bty='n', legend=paste0('r=',round(r,4)))
 
 r = cor(RecoveryRTF$true_sigma, RecoveryRTF$est_sigma)
 plot(RecoveryRTF$true_sigma, RecoveryRTF$est_sigma, 
      xlab=expression('True'~sigma), ylab=expression('Estimated'~sigma), 
-     main='RTF') 
+     main='Moving Window') 
 legend('topleft', bty='n', legend=paste0('r=',round(r,4)))
 
-r = cor(RecoveryRTF$true_nk, round(RecoveryRTF$est_nk))
-plot(RecoveryRTF$true_nk, round(RecoveryRTF$est_nk), 
+r = cor(RecoveryRTF$true_nk, RecoveryRTF$est_nk)
+plot(RecoveryRTF$true_nk, RecoveryRTF$est_nk, 
      xlab=expression('True'~nk), ylab=expression('Estimated'~nk), 
-     main='RTF') 
+     main='Moving Window') 
 legend('topleft', bty='n', legend=paste0('r=',round(r,4)))
 
 dev.off()
